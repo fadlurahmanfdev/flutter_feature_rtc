@@ -1,0 +1,33 @@
+class JsonConstants {
+  static const String value = 'value';
+  static const String params = 'params';
+  static const String method = 'method';
+  static const String id = 'id';
+  static const String result = 'result';
+  static const String iceCandidate = 'iceCandidate';
+  static const String participantJoined = 'participantJoined';
+  static const String participantEvicted = 'participantEvicted';
+  static const String participantUnpublished = 'participantUnpublished';
+  static const String streamPropertyChanged = 'streamPropertyChanged';
+  static const String sendMessage = 'sendMessage';
+  static const String participantPublished = 'participantPublished';
+  static const String participantLeft = 'participantLeft';
+  static const String sessionId = 'sessionId';
+  static const String sdpAnswer = 'sdpAnswer';
+  static const String joinRoom = 'joinRoom';
+  static const String metadata = 'metadata';
+  static const String publishVideo = 'publishVideo';
+  static const String onIceCandidate = 'onIceCandidate';
+  static const String receiveVideoFrom = 'receiveVideoFrom';
+  static const String endpointName = 'endpointName';
+  static const String senderConnectionId = 'senderConnectionId';
+  static const String connectionId = 'connectionId';
+  static const String leaveRoom = 'leaveRoom';
+  static const String streams = 'streams';
+  static const String audioActive = 'audioActive';
+  static const String videoActive = 'videoActive';
+  static const String hasAudio = 'hasAudio';
+  static const String hasVideo = 'hasVideo';
+  static const String property = 'property';
+  static const String newValue = 'newValue';
+}
