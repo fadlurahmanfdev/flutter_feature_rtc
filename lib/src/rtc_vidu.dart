@@ -12,15 +12,9 @@ import 'package:flutter_feature_rtc/src/dto/remote_participant_model.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 Map<String, dynamic> _iceServers = {
-  // 'sdpSemantics': 'plan-b',
-  // "iceServers": [
-  //   {"url": "stun:stun.l.google.com:19302"},
-  // ]
-  'sdpSemantics': 'unified-plan',
-  'iceServers': [
-    {
-      'url': 'stun:stun.l.google.com:19302',
-    },
+  'sdpSemantics': 'plan-b',
+  "iceServers": [
+    {"url": "stun:stun.l.google.com:19302"},
   ]
 };
 
@@ -117,10 +111,10 @@ class RTCVidu {
         createLocalPeerConnection().then((_) {
           createLocalOffer().then((_) {
             Helper.setSpeakerphoneOn(true);
-            localStream.getAudioTracks().forEach((element) {
-              element.enableSpeakerphone(true);
-              Helper.setVolume(0, element);
-            });
+            // localStream.getAudioTracks().forEach((audioTrack) {
+            //   audioTrack.enableSpeakerphone(true);
+            //   Helper.setVolume(0, audioTrack);
+            // });
           });
         });
       });
