@@ -29,6 +29,7 @@ final Map<String, dynamic> _constraint = {
 enum RTCViduState {
   initializeWebSocket,
   createdIdJoinRoom,
+  localPublishedVideo,
   createdLocalOffer,
   localStreamAdded,
   remoteStreamAdded,
@@ -41,13 +42,13 @@ enum RTCViduState {
 
 class RTCVidu {
   Function(RTCViduState state) onRtcCallback;
-  Function(MediaStream stream) onLocalStream;
+  Function(MediaStream stream) onLocalStreamAdded;
   Function(String participantConnectionId, MediaStream stream) onAddRemoteStream;
   Function(String participantConnectionId) onRemoveRemoteStream;
 
   RTCVidu({
     required this.onRtcCallback,
-    required this.onLocalStream,
+    required this.onLocalStreamAdded,
     required this.onAddRemoteStream,
     required this.onRemoveRemoteStream,
   });
@@ -75,7 +76,7 @@ class RTCVidu {
   late String sessionToken;
 
   final Map<int, String> _idsReceiveVideo = <int, String>{};
-  final List<Map<String, dynamic>> _iceCandidatesParams = <Map<String, dynamic>>[];
+  final List<Map<String, dynamic>> _localIceCandidateParams = <Map<String, dynamic>>[];
   final Map<String, RemoteParticipantModel> _participants = <String, RemoteParticipantModel>{};
   final Map<String, String> _participantEndpoints = <String, String>{};
 
@@ -139,41 +140,43 @@ class RTCVidu {
   late RTCPeerConnection localPeerConnection;
 
   int? _idJoinRoom;
-  bool _localPeerConnectionHasRemoteDescription = false;
+
+  // TODO: DIPERTANYAKAN?
+  // bool _localPeerConnectionHasRemoteDescription = false;
 
   Future<void> createLocalPeerConnection() async {
     localPeerConnection = await createPeerConnection(_iceServers, _constraint);
-    localStream.getTracks().forEach((element) {
-      localPeerConnection.addTrack(element, localStream);
+
+    localStream.getTracks().forEach((track) {
+      localPeerConnection.addTrack(track, localStream);
     });
 
-    localPeerConnection.addStream(localStream);
-
     localPeerConnection.onIceGatheringState = (state) {
+      debugPrint("LOCAL onIceGatheringState: $state");
       if (state == RTCIceGatheringState.RTCIceGatheringStateComplete) {
-        print("MASUK_ RTCIceGatheringStateComplete");
         // TODO
       }
     };
 
-    localPeerConnection.onIceCandidate = (iceCandidate) {
-      IceCandidateMethodParamModel iceCandidateModel = IceCandidateMethodParamModel(
-        iceCandidate.candidate,
-        iceCandidate.sdpMid,
-        iceCandidate.sdpMLineIndex,
-      );
-      if (_userId != null) {
-        iceCandidateModel = iceCandidateModel.copyWith(endPointName: _endPointName ?? _userId);
-        sendJson(JsonConstants.onIceCandidate, params: iceCandidateModel.toJson());
-      } else {
-        _iceCandidatesParams.add(iceCandidateModel.toJson());
-      }
-      _iceCandidatesParams.add(iceCandidateModel.toJson());
+    localPeerConnection.onAddStream = (stream) {
+      debugPrint("LOCAL ON ADD STREAM: ${stream.id}");
     };
 
+    localPeerConnection.onIceCandidate = (iceCandidate) {
+      Map<String, dynamic> iceCandidateMap = iceCandidate.toMap();
+      if (_localUserConnectionId != null) {
+        iceCandidateMap['userConnectionId'] = _localUserConnectionId;
+      }
+      debugPrint("LOCAL onIceCandidate: $iceCandidateMap");
+      _localIceCandidateParams.add(iceCandidateMap);
+    };
+
+    localPeerConnection.onTrack = (track) {};
+
     localPeerConnection.addStream(localStream);
-    onLocalStream(localStream);
+    onLocalStreamAdded(localStream);
     onRtcCallback(RTCViduState.localStreamAdded);
+
     _idJoinRoom = sendJson(
       JsonConstants.joinRoom,
       params: {
@@ -186,6 +189,7 @@ class RTCVidu {
       },
     );
     onRtcCallback(RTCViduState.createdIdJoinRoom);
+    debugPrint("ID JOIN ROOM: $_idJoinRoom");
   }
 
   int? _idPublishVideo;
@@ -209,6 +213,8 @@ class RTCVidu {
           'sdpOffer': sessionDescription.sdp
         },
       );
+      onRtcCallback(RTCViduState.localPublishedVideo);
+      debugPrint("ID PUBLISH VIDEO: $_idPublishVideo");
       onRtcCallback(RTCViduState.createdLocalOffer);
     } catch (e) {
       log("failed created local offer: $e");
@@ -216,6 +222,7 @@ class RTCVidu {
   }
 
   Future<void> onMessage(Map<String, dynamic> message) async {
+    // debugPrint("🌏🌏🌏 ON_MESSAGE_FROM_SOCKET: $message 🌏🌏🌏");
     if (message.containsKey(JsonConstants.result)) {
       handleResult(id: message[JsonConstants.id], message: message, result: message[JsonConstants.result]);
     } else if (message.containsKey(JsonConstants.method)) {
@@ -225,8 +232,8 @@ class RTCVidu {
     }
   }
 
-  String? _userId;
-  String? _endPointName;
+  String? _localUserConnectionId;
+  String? _localStreamId;
 
   Future<void> handleResult({
     required int id,
@@ -236,11 +243,11 @@ class RTCVidu {
     debugPrint("🌝🌝🌝 ON_MESSAGE_RESULT_FROM_SOCKET: $message 🌝🌝🌝");
     try {
       if (id == _idPublishVideo) {
-        log("PUBLISH VIDEO ID $id --> ${result[JsonConstants.id]}");
-        _endPointName = result[JsonConstants.id];
+        _localStreamId = result[JsonConstants.id];
+        debugPrint("PUBLISH VIDEO ID: $id, localStreamId:$_localStreamId");
       } else if (id == _idJoinRoom) {
-        log("JOIN ROOM ID $id --> ${result[JsonConstants.id]}");
-        _userId = result[JsonConstants.id];
+        _localUserConnectionId = result[JsonConstants.id];
+        debugPrint("JOIN ROOM ID: $id, localUserConnectionId: $_localUserConnectionId");
       }
 
       if (result.containsKey(JsonConstants.sdpAnswer)) {
@@ -252,9 +259,9 @@ class RTCVidu {
             return json.decode(jsonString) as Map<String, dynamic>;
           }).toList();
 
-          for (final iceCandidate in _iceCandidatesParams) {
-            iceCandidate[JsonConstants.endpointName] = result[JsonConstants.endpointName] ?? result[JsonConstants.id];
-            iceCandidate[JsonConstants.id] = result[JsonConstants.id] ?? result[JsonConstants.endpointName];
+          for (final iceCandidate in _localIceCandidateParams) {
+            iceCandidate['connectionId'] = _localUserConnectionId;
+            iceCandidate['endPointName'] = _localStreamId;
             sendJson(JsonConstants.iceCandidate, params: iceCandidate);
           }
 
@@ -270,9 +277,9 @@ class RTCVidu {
 
   void _saveAnswer({required Map<String, dynamic> result, required int id}) {
     RTCSessionDescription sessionDescription = RTCSessionDescription(result[JsonConstants.sdpAnswer], 'answer');
-    if (!_localPeerConnectionHasRemoteDescription) {
+    final isLocal = result[JsonConstants.id];
+    if (isLocal == _localStreamId) {
       localPeerConnection.setRemoteDescription(sessionDescription);
-      _localPeerConnectionHasRemoteDescription = true;
     } else if (_idsReceiveVideo.containsKey(id)) {
       _participants[_idsReceiveVideo[id]]?.peerConnection?.setRemoteDescription(sessionDescription);
     }
@@ -280,9 +287,9 @@ class RTCVidu {
 
   void addParticipantAlreadyInRoom(List<Map<String, dynamic>> values) {
     for (final value in values) {
-      String remoteParticipantId = value[JsonConstants.id];
+      String remoteParticipantConnectionId = value[JsonConstants.id];
       RemoteParticipantModel remoteParticipantModel = RemoteParticipantModel(
-        connectionId: remoteParticipantId,
+        connectionId: remoteParticipantConnectionId,
       );
       final metaData = value[JsonConstants.metadata];
       if (metaData != null) {
@@ -301,7 +308,7 @@ class RTCVidu {
           remoteParticipantModel = remoteParticipantModel.copyWith(streamId: stream[JsonConstants.id]);
         }
       }
-      _participants[remoteParticipantId] = remoteParticipantModel;
+      _participants[remoteParticipantModel.connectionId] = remoteParticipantModel;
       createRemotePeerConnection(remoteParticipantModel).then((peerConnection) {
         receiveVideoFromParticipant(remoteParticipantModel: remoteParticipantModel);
       });
@@ -311,20 +318,20 @@ class RTCVidu {
   Future<RTCPeerConnection> createRemotePeerConnection(RemoteParticipantModel remoteParticipant) async {
     final remotePeerConnection = await createPeerConnection(_iceServers, _constraint);
     remotePeerConnection.onIceCandidate = (candidate) {
-      final iceCandidate = IceCandidateMethodParamModel(
-        candidate.candidate,
-        candidate.sdpMid,
-        candidate.sdpMLineIndex,
-        endPointName: remoteParticipant.streamId ??
-            _participantEndpoints[remoteParticipant.connectionId] ??
-            remoteParticipant.connectionId,
-      );
-      sendJson(JsonConstants.iceCandidate, params: iceCandidate.toJson());
+      final iceCandidateMap = candidate.toMap();
+      iceCandidateMap['connectionId'] = remoteParticipant.connectionId;
+      iceCandidateMap['endpointName'] = remoteParticipant.streamId;
+      debugPrint("REMOTE onIceCandidate: $iceCandidateMap");
+      sendJson(JsonConstants.iceCandidate, params: iceCandidateMap);
     };
 
     remotePeerConnection.onAddStream = (stream) {
       // TODO
-      print("MASUK_ REMOTE STREAM: STREAM ID: ${stream.id}");
+      debugPrint(
+          "REMOTE onAddStream, CONNECTION ID: ${remoteParticipant.connectionId}, STREAM ID: ${remoteParticipant.streamId}");
+      remoteParticipant.mediaStream = stream;
+      _participants[remoteParticipant.connectionId] =
+          _participants[remoteParticipant.connectionId]!.copyWith(mediaStream: stream);
       onAddRemoteStream(remoteParticipant.connectionId, stream);
     };
 
@@ -333,18 +340,23 @@ class RTCVidu {
     };
 
     remoteParticipant.peerConnection = remotePeerConnection;
+    _participants[remoteParticipant.connectionId] =
+        _participants[remoteParticipant.connectionId]!.copyWith(peerConnection: remotePeerConnection);
     return remotePeerConnection;
   }
 
   Future<void> receiveVideoFromParticipant({required RemoteParticipantModel remoteParticipantModel}) async {
     if (remoteParticipantModel.peerConnection == null) return;
     try {
-      final sessionDescription = await remoteParticipantModel.peerConnection!.createOffer(_constraint);
-      await remoteParticipantModel.peerConnection!.setLocalDescription(sessionDescription);
-      int id = sendJson(JsonConstants.receiveVideoFrom, params: {
-        'sender': remoteParticipantModel.streamId ?? remoteParticipantModel.connectionId,
-        'sdpOffer': sessionDescription.sdp
-      });
+      final sessionDescription = await _participants[remoteParticipantModel.connectionId]!.peerConnection!.createOffer(_constraint);
+      await _participants[remoteParticipantModel.connectionId]!.peerConnection!.setLocalDescription(sessionDescription);
+      int id = sendJson(
+        JsonConstants.receiveVideoFrom,
+        params: {
+          'sender': remoteParticipantModel.streamId ?? remoteParticipantModel.connectionId,
+          'sdpOffer': sessionDescription.sdp
+        },
+      );
       _idsReceiveVideo[id] = remoteParticipantModel.connectionId;
     } catch (e) {
       log("failed receiveVideoFromParticipant: $e");
@@ -369,11 +381,24 @@ class RTCVidu {
   }
 
   void _iceCandidateMethod({required Map<String, dynamic> params}) {
-    bool isLocal = params[JsonConstants.senderConnectionId] == _userId;
-    _saveIceCandidate(params, params[JsonConstants.endpointName], params[JsonConstants.senderConnectionId], isLocal);
+    bool isLocal = params[JsonConstants.senderConnectionId] == _localUserConnectionId;
+    _saveIceCandidate(
+      params: params,
+      endpointName: params[JsonConstants.endpointName],
+      senderConnectionId: params[JsonConstants.senderConnectionId],
+      isLocal: isLocal,
+    );
   }
 
-  void _saveIceCandidate(Map<String, dynamic> params, String endpointName, String senderConnectionId, bool isLocal) {
+  void _saveIceCandidate({
+    required Map<String, dynamic> params,
+    /**
+     * streamId
+     * */
+    required String endpointName,
+    required String senderConnectionId,
+    required bool isLocal,
+  }) {
     IceCandidateMethodParamModel iceCandidateModel = IceCandidateMethodParamModel(
       params['candidate'],
       params['sdpMid'],

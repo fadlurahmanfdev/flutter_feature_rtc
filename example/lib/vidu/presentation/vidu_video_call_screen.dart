@@ -29,7 +29,7 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
       onRtcCallback: (state) {
         print("masuk rtc state: ${state}");
       },
-      onLocalStream: (MediaStream stream) {
+      onLocalStreamAdded: (MediaStream stream) {
         setState(() {
           localRenderer.srcObject = stream;
         });

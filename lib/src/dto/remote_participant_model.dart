@@ -13,6 +13,7 @@ class RemoteParticipantModel {
   bool isAudioActive;
   RemoteParticipantMetaDataModel? metaData;
   RTCPeerConnection? peerConnection;
+  MediaStream? mediaStream;
 
   RemoteParticipantModel({
     required this.connectionId,
@@ -22,9 +23,16 @@ class RemoteParticipantModel {
     this.isAudioActive = false,
     this.isVideoActive = false,
     this.metaData,
+    this.peerConnection,
+    this.mediaStream,
   });
 
-  RemoteParticipantModel copyWith({String? streamId, RemoteParticipantMetaDataModel? metaData}) {
+  RemoteParticipantModel copyWith({
+    String? streamId,
+    RemoteParticipantMetaDataModel? metaData,
+    RTCPeerConnection? peerConnection,
+    MediaStream? mediaStream,
+  }) {
     return RemoteParticipantModel(
       connectionId: connectionId,
       streamId: streamId ?? this.streamId,
@@ -33,6 +41,8 @@ class RemoteParticipantModel {
       isAudioActive: isAudioActive,
       isVideoActive: isVideoActive,
       metaData: metaData ?? this.metaData,
+      peerConnection: peerConnection ?? this.peerConnection,
+      mediaStream: mediaStream ?? this.mediaStream,
     );
   }
 
