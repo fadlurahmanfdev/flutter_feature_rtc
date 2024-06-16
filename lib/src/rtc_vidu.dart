@@ -36,6 +36,7 @@ enum RTCViduState {
   remoteStreamRemoved,
   noParticipantLeft,
   webSocketDone,
+  endCall,
   parsingHandleResultError,
   webSocketError,
 }
@@ -45,12 +46,18 @@ class RTCVidu {
   Function(MediaStream stream) onLocalStreamAdded;
   Function(String participantConnectionId, MediaStream stream) onAddRemoteStream;
   Function(String participantConnectionId) onRemoveRemoteStream;
+  Function(bool isMuted)? onMicMuted;
+  Function(bool isMicActive, String connectionId)? onRemoteMicActive;
+  Function(bool isCameraActive, String connectionId)? onRemoteCameraActive;
 
   RTCVidu({
     required this.onRtcCallback,
     required this.onLocalStreamAdded,
     required this.onAddRemoteStream,
     required this.onRemoveRemoteStream,
+    this.onMicMuted,
+    this.onRemoteMicActive,
+    this.onRemoteCameraActive,
   });
 
   static Future<HttpClient> httpClientForSslPinning({
@@ -222,7 +229,7 @@ class RTCVidu {
   }
 
   Future<void> onMessage(Map<String, dynamic> message) async {
-    // debugPrint("🌏🌏🌏 ON_MESSAGE_FROM_SOCKET: $message 🌏🌏🌏");
+    debugPrint("🌏🌏🌏 ON_MESSAGE_FROM_SOCKET: $message 🌏🌏🌏");
     if (message.containsKey(JsonConstants.result)) {
       handleResult(id: message[JsonConstants.id], message: message, result: message[JsonConstants.result]);
     } else if (message.containsKey(JsonConstants.method)) {
@@ -240,7 +247,7 @@ class RTCVidu {
     required Map<String, dynamic> message,
     required Map<String, dynamic> result,
   }) async {
-    debugPrint("🌝🌝🌝 ON_MESSAGE_RESULT_FROM_SOCKET: $message 🌝🌝🌝");
+    debugPrint("🌝🌝🌝 ON_MESSAGE_RESULT_FROM_SOCKET: $result 🌝🌝🌝");
     try {
       if (id == _idPublishVideo) {
         _localStreamId = result[JsonConstants.id];
@@ -305,7 +312,19 @@ class RTCVidu {
         }).toList();
         if (streams.isNotEmpty) {
           final stream = streams.first;
-          remoteParticipantModel = remoteParticipantModel.copyWith(streamId: stream[JsonConstants.id]);
+          final audioActive = stream[JsonConstants.audioActive] as bool;
+          if (onRemoteMicActive != null) {
+            onRemoteMicActive!(audioActive, remoteParticipantConnectionId);
+          }
+          final videoActive = stream[JsonConstants.videoActive] as bool;
+          if (onRemoteCameraActive != null) {
+            onRemoteCameraActive!(videoActive, remoteParticipantConnectionId);
+          }
+          remoteParticipantModel = remoteParticipantModel.copyWith(
+            isVideoActive: videoActive,
+            isAudioActive: audioActive,
+            streamId: stream[JsonConstants.id],
+          );
         }
       }
       _participants[remoteParticipantModel.connectionId] = remoteParticipantModel;
@@ -328,7 +347,10 @@ class RTCVidu {
     remotePeerConnection.onAddStream = (stream) {
       // TODO
       debugPrint(
-          "REMOTE onAddStream, CONNECTION ID: ${remoteParticipant.connectionId}, STREAM ID: ${remoteParticipant.streamId}");
+        "REMOTE onAddStream, "
+        "CONNECTION ID: ${remoteParticipant.connectionId}, "
+        "STREAM ID: ${remoteParticipant.streamId}",
+      );
       remoteParticipant.mediaStream = stream;
       _participants[remoteParticipant.connectionId] =
           _participants[remoteParticipant.connectionId]!.copyWith(mediaStream: stream);
@@ -348,7 +370,8 @@ class RTCVidu {
   Future<void> receiveVideoFromParticipant({required RemoteParticipantModel remoteParticipantModel}) async {
     if (remoteParticipantModel.peerConnection == null) return;
     try {
-      final sessionDescription = await _participants[remoteParticipantModel.connectionId]!.peerConnection!.createOffer(_constraint);
+      final sessionDescription =
+          await _participants[remoteParticipantModel.connectionId]!.peerConnection!.createOffer(_constraint);
       await _participants[remoteParticipantModel.connectionId]!.peerConnection!.setLocalDescription(sessionDescription);
       int id = sendJson(
         JsonConstants.receiveVideoFrom,
@@ -377,6 +400,8 @@ class RTCVidu {
       _participantJoinedMethod(params: params);
     } else if (method == JsonConstants.participantPublished) {
       _participantPublishedMethod(params: params);
+    } else if (method == JsonConstants.streamPropertyChanged) {
+      _streamPropertyChangedMethod(params: params);
     }
   }
 
@@ -461,10 +486,20 @@ class RTCVidu {
         }).toList();
         if (streams.isNotEmpty) {
           final stream = streams.first;
-          if (stream.containsKey(JsonConstants.id)) {
-            remoteParticipantModelPublished =
-                remoteParticipantModelPublished.copyWith(streamId: stream[JsonConstants.id]);
+          final String streamId = stream[JsonConstants.id];
+          final bool audioActive = stream[JsonConstants.audioActive];
+          if (onRemoteMicActive != null) {
+            onRemoteMicActive!(audioActive, remoteParticipantConnectionId);
           }
+          final bool videoActive = stream[JsonConstants.videoActive];
+          if (onRemoteCameraActive != null) {
+            onRemoteCameraActive!(videoActive, remoteParticipantConnectionId);
+          }
+          remoteParticipantModelPublished = remoteParticipantModelPublished.copyWith(
+            isAudioActive: audioActive,
+            isVideoActive: videoActive,
+            streamId: streamId,
+          );
         }
       }
       if (remoteParticipantModelPublished.peerConnection != null) {
@@ -474,6 +509,24 @@ class RTCVidu {
             .then((RTCPeerConnection remotePeerConnection) async {
           receiveVideoFromParticipant(remoteParticipantModel: remoteParticipantModelPublished);
         });
+      }
+    }
+  }
+
+  void _streamPropertyChangedMethod({required Map<String, dynamic> params}) {
+    final connectionId = params[JsonConstants.connectionId];
+    if (_participants.containsKey(connectionId)) {}
+    if (params[JsonConstants.property] == JsonConstants.audioActive) {
+      if (onRemoteMicActive != null) {
+        final newAudioValue = (params[JsonConstants.newValue] as String) == "true";
+        _participants[connectionId]!.isAudioActive = newAudioValue;
+        onRemoteMicActive!(newAudioValue, connectionId);
+      }
+    } else if (params[JsonConstants.property] == JsonConstants.videoActive) {
+      if (onRemoteCameraActive != null) {
+        final newCameraValue = (params[JsonConstants.newValue] as String) == "true";
+        _participants[connectionId]!.isVideoActive = newCameraValue;
+        onRemoteCameraActive!(newCameraValue, connectionId);
       }
     }
   }
@@ -499,9 +552,40 @@ class RTCVidu {
     _internalId++;
   }
 
-  Future<void> dispose() async {
-    unawaited(webSocket.close());
+  void endCall() {
     _timer?.cancel();
     _timer = null;
+
+    localStream.dispose();
+    sendJson(JsonConstants.leaveRoom);
+
+    _participants.forEach((key, participant) {
+      participant.mediaStream?.dispose();
+      participant.peerConnection?.close();
+      participant.peerConnection?.dispose();
+    });
+    _participants.clear();
+    webSocket.close();
+    onRtcCallback(RTCViduState.endCall);
+  }
+
+  Future<void> dispose() async {
+    _timer?.cancel();
+    _timer = null;
+    webSocket.close();
+  }
+
+  void switchCamera() {
+    Helper.switchCamera(localStream.getVideoTracks().first, null, localStream);
+  }
+
+  bool audioMuted = false;
+
+  void muteOrUnMuteAudio() {
+    audioMuted = !audioMuted;
+    Helper.setMicrophoneMute(audioMuted, localStream.getTracks().first);
+    if (onMicMuted != null) {
+      onMicMuted!(audioMuted);
+    }
   }
 }

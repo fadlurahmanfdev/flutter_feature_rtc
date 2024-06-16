@@ -20,6 +20,9 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
   late RTCVidu rtcVidu;
   final localRenderer = RTCVideoRenderer();
   Map<String, RTCVideoRenderer> remoteRenderers = {};
+  Map<String, bool> isParticipantsCameraActive = {};
+  Map<String, bool> isParticipantsMicActive = {};
+  bool micMuted = false;
 
   @override
   void initState() {
@@ -27,7 +30,13 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
 
     rtcVidu = RTCVidu(
       onRtcCallback: (state) {
-        print("masuk rtc state: ${state}");
+        print("masuk_ rtc state: ${state}");
+        switch (state) {
+          case RTCViduState.endCall:
+            Navigator.of(context).pop();
+          default:
+            break;
+        }
       },
       onLocalStreamAdded: (MediaStream stream) {
         setState(() {
@@ -52,6 +61,23 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
             remoteRenderers.remove(participantConnectionId);
           });
         }
+      },
+      onMicMuted: (isMuted) {
+        setState(() {
+          micMuted = isMuted;
+        });
+      },
+      onRemoteCameraActive: (isActive, connectionId) {
+        print("MASUK ${connectionId} CAMERA ACTIVE -> ${isActive}");
+        setState(() {
+          isParticipantsCameraActive[connectionId] = isActive;
+        });
+      },
+      onRemoteMicActive: (isActive, connectionId) {
+        print("MASUK ${connectionId} REMOTE MIC ACTIVE -> ${isActive}");
+        setState(() {
+          isParticipantsMicActive[connectionId] = isActive;
+        });
       },
     );
 
@@ -97,6 +123,10 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
               child: RTCVideoView(localRenderer),
             ),
           ),
+          Align(
+            alignment: Alignment.bottomRight,
+            child: _controlLayout(),
+          ),
         ],
       ),
     );
@@ -109,9 +139,63 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
   Widget _remoteLayout() {
     if (remoteRenderers.length == 1) {
       final firstKey = remoteRenderers.keys.first;
-      return RTCVideoView(remoteRenderers[firstKey]!);
+      final isCameraActive = isParticipantsCameraActive[firstKey] ?? false;
+      return isCameraActive
+          ? RTCVideoView(remoteRenderers[firstKey]!)
+          : Container(color: Colors.blue, child: Text("CAMERA: $isParticipantsCameraActive"));
     } else {
-      return Text("TODO");
+      return Text("NOTHING");
     }
+  }
+
+  Widget _controlLayout() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        GestureDetector(
+          onTap: () async {
+            rtcVidu.muteOrUnMuteAudio();
+          },
+          child: Container(
+            height: 35,
+            width: 35,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
+            child: Icon(
+              micMuted ? Icons.mic : Icons.mic_off,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: () async {
+            rtcVidu.endCall();
+          },
+          child: Container(
+            height: 50,
+            width: 50,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
+            child: Icon(
+              Icons.call_end,
+              color: Colors.white,
+            ),
+          ),
+        ),
+        GestureDetector(
+          onTap: () async {
+            rtcVidu.switchCamera();
+          },
+          child: Container(
+            height: 35,
+            width: 35,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
+            child: Icon(
+              Icons.autorenew,
+              color: Colors.white,
+            ),
+          ),
+        )
+      ],
+    );
   }
 }
