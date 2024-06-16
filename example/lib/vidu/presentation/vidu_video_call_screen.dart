@@ -145,7 +145,14 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
       final isCameraActive = isParticipantsCameraActive[firstKey] ?? false;
       return isCameraActive
           ? RTCVideoView(remoteRenderers[firstKey]!)
-          : Container(color: Colors.blue, child: Text("CAMERA: $isParticipantsCameraActive"));
+          : Container(
+              width: double.infinity,
+              height: double.infinity,
+              color: Colors.grey,
+              child: Icon(
+                Icons.broken_image,
+                color: Colors.black,
+              ));
     } else {
       return Text("NOTHING");
     }
