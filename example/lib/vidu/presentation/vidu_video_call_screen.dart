@@ -1,3 +1,4 @@
+import 'package:draggable_widget/draggable_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feature_rtc/flutter_feature_rtc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -114,11 +115,13 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
       body: Stack(
         children: [
           _remoteLayout(),
-          Align(
-            alignment: Alignment.bottomRight,
+          DraggableWidget(
+            initialPosition: AnchoringPosition.bottomRight,
+            bottomMargin: 250,
+            horizontalSpace: 20,
+            intialVisibility: true,
             child: Container(
               height: 200,
-              margin: EdgeInsets.only(right: 50, bottom: 50),
               width: 100,
               child: RTCVideoView(localRenderer),
             ),
@@ -149,53 +152,56 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
   }
 
   Widget _controlLayout() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onTap: () async {
-            rtcVidu.muteOrUnMuteAudio();
-          },
-          child: Container(
-            height: 35,
-            width: 35,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
-            child: Icon(
-              micMuted ? Icons.mic : Icons.mic_off,
-              color: Colors.white,
+    return Container(
+      margin: EdgeInsets.only(bottom: 20.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          GestureDetector(
+            onTap: () async {
+              rtcVidu.muteOrUnMuteAudio();
+            },
+            child: Container(
+              height: 35,
+              width: 35,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
+              child: Icon(
+                micMuted ? Icons.mic : Icons.mic_off,
+                color: Colors.white,
+              ),
             ),
           ),
-        ),
-        GestureDetector(
-          onTap: () async {
-            rtcVidu.endCall();
-          },
-          child: Container(
-            height: 50,
-            width: 50,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
-            child: Icon(
-              Icons.call_end,
-              color: Colors.white,
+          GestureDetector(
+            onTap: () async {
+              rtcVidu.endCall();
+            },
+            child: Container(
+              height: 50,
+              width: 50,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
+              child: Icon(
+                Icons.call_end,
+                color: Colors.white,
+              ),
             ),
           ),
-        ),
-        GestureDetector(
-          onTap: () async {
-            rtcVidu.switchCamera();
-          },
-          child: Container(
-            height: 35,
-            width: 35,
-            decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
-            child: Icon(
-              Icons.autorenew,
-              color: Colors.white,
+          GestureDetector(
+            onTap: () async {
+              rtcVidu.switchCamera();
+            },
+            child: Container(
+              height: 35,
+              width: 35,
+              decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.red),
+              child: Icon(
+                Icons.autorenew,
+                color: Colors.white,
+              ),
             ),
-          ),
-        )
-      ],
+          )
+        ],
+      ),
     );
   }
 }
