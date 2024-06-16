@@ -150,9 +150,10 @@ class _ViduVideoCallScreenState extends State<ViduVideoCallScreen> {
               height: double.infinity,
               color: Colors.grey,
               child: Icon(
-                Icons.broken_image,
+                Icons.no_photography_outlined,
                 color: Colors.black,
-              ));
+              ),
+            );
     } else {
       return Text("NOTHING");
     }
