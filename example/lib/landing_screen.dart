@@ -1,3 +1,4 @@
+import 'package:example/manual/presentation/manual_call_screen.dart';
 import 'package:example/vidu/presentation/landing_vidu_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -13,13 +14,26 @@ class _LandingScreenState extends State<LandingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Landing'),
+        title: Text('Features'),
       ),
       body: Column(
         children: [
-          ElevatedButton(onPressed: () async {
-            Navigator.of(context).push(MaterialPageRoute(builder: (_) => LandingViduScreen()));
-          }, child: Text('Go To Landing'))
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => LandingViduScreen()));
+            },
+            child: Text(
+              'OpenVidu',
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).push(MaterialPageRoute(builder: (_) => ManualCallScreen()));
+            },
+            child: Text(
+              'Manual Call',
+            ),
+          ),
         ],
       ),
     );
