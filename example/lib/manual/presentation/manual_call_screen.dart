@@ -1,3 +1,9 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:example/manual/data/repository/video_call_datasource_repository.dart';
+import 'package:example/manual/presentation/manual_call_store.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_feature_rtc/flutter_feature_rtc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -10,14 +16,30 @@ class ManualCallScreen extends StatefulWidget {
 }
 
 class _ManualCallScreenState extends State<ManualCallScreen> {
+  final store = ManualCallStore(videoCallDataSourceRepository: VideoCallDataSourceRepositoryImpl());
+  late String userId;
+  String roomId = "room_test";
+
   final localRenderer = RTCVideoRenderer();
   final remoteRenderer = RTCVideoRenderer();
 
   @override
   void initState() {
     super.initState();
-    initializeLocalRenderer();
-    initPlugin();
+    if (Platform.isIOS) {
+      DeviceInfoPlugin().iosInfo.then((iosInfo) {
+        userId = iosInfo.identifierForVendor ?? '-';
+        initializeLocalRenderer();
+        initPlugin();
+      });
+    } else {
+      DeviceInfoPlugin().androidInfo.then((androidInfo) {
+        userId = androidInfo.id.replaceAll(".", "");
+        initializeLocalRenderer();
+        initPlugin();
+        initAnswerListener();
+      });
+    }
   }
 
   Future<void> initializeLocalRenderer() async {
@@ -29,6 +51,7 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
   void dispose() {
     localRenderer.dispose();
     remoteRenderer.dispose();
+    featureRtcManager.dispose();
     super.dispose();
   }
 
@@ -46,16 +69,23 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
           remoteRenderer.srcObject = stream;
         });
       },
-      onSaveIceCandidate: (iceCandidate) {
-        debugPrint("MASUK_ ON ICE CANDIDATE: $iceCandidate");
+      onSaveIceCandidate: (String uuid, bool isCaller, iceCandidate) {
+        store.saveCallerCandidate(roomId: roomId, uuid: uuid, candidate: iceCandidate);
       },
-      onSaveOffer: (Map<String, dynamic> offer) {
-        debugPrint("MASUK_ ON SAVE OFFER: $offer");
+      onSaveOffer: (String offerUserId, Map<String, dynamic> offer) {
+        store.saveCallerOffer(roomId: roomId, offerUserId: offerUserId, offer: offer);
       },
       onSaveAnswer: (Map<String, dynamic> answer) {
-        debugPrint("MASUK_ ON SAVE ANSWER: $answer");
+        store.saveReceiverAnswer(roomId: roomId, answerUserId: userId, answer: answer);
       },
     );
+  }
+
+  late StreamSubscription<Map<String, dynamic>> streamAnswer;
+  Future<void> initAnswerListener() async {
+    streamAnswer = store.listenReceiverAnswer(roomId: roomId).listen((answer) {
+      featureRtcManager.setAnswer(answer: answer);
+    });
   }
 
   @override
@@ -87,9 +117,9 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
           SizedBox(height: 20),
           ElevatedButton(
               onPressed: () async {
-                featureRtcManager.startVideoCall(fromUserId: 'android_1');
+                featureRtcManager.startVideoCall(fromUserId: userId);
               },
-              child: Text('Init Local Media Stream 1'))
+              child: Text('Start Video Call'))
         ],
       ),
     );

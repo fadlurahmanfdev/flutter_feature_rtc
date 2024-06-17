@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_feature_rtc/src/base/base_feature_rtc.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:uuid/uuid.dart';
 
 class FeatureRtcManager extends BaseFeatureRtc {
   Function(MediaStream) onLocalStreamAdded;
   Function(MediaStream) onRemoteStreamAdded;
-  Function(Map<String, dynamic>) onSaveIceCandidate;
-  Function(Map<String, dynamic>) onSaveOffer;
+  Function(String uuid, bool isCaller, Map<String, dynamic> iceCandidate) onSaveIceCandidate;
+  Function(String offerUserId, Map<String, dynamic> offer) onSaveOffer;
   Function(Map<String, dynamic>) onSaveAnswer;
 
   FeatureRtcManager({
@@ -56,7 +57,7 @@ class FeatureRtcManager extends BaseFeatureRtc {
       final newMapIceCandidate = iceCandidate.toMap() as Map<String, dynamic>;
       newMapIceCandidate['userId'] = _localUserId;
       debugPrint("🌼🌼🌼 ON ICE CANDIDATE: $newMapIceCandidate 🌼🌼🌼");
-      onSaveIceCandidate(newMapIceCandidate);
+      onSaveIceCandidate(const Uuid().v4(), isCaller, newMapIceCandidate);
     };
 
     _localPeerConnection.onTrack = (event) {
@@ -90,10 +91,10 @@ class FeatureRtcManager extends BaseFeatureRtc {
     newOffer['userId'] = _localUserId;
     debugPrint("🌏🌏🌏 LOCAL OFFER: $newOffer");
     await _localPeerConnection.setLocalDescription(offer);
-    onSaveOffer(newOffer);
+    onSaveOffer(_localUserId, newOffer);
   }
 
-  String? _localUserId;
+  late String _localUserId;
   bool isCaller = false;
 
   Future<void> startVideoCall({required String fromUserId}) async {
@@ -122,9 +123,22 @@ class FeatureRtcManager extends BaseFeatureRtc {
     onSaveAnswer(newMapAnswer);
   }
 
+  Future<void> setAnswer({required Map<String, dynamic> answer}) async {
+    final sessionDescription = RTCSessionDescription(answer['sdp'], answer["type"]);
+    await _localPeerConnection.setRemoteDescription(sessionDescription);
+  }
+
   Future<void> addCandidate({required Map<String, dynamic> mapCandidate}) async {
     final iceCandidate =
         RTCIceCandidate(mapCandidate['candidate'], mapCandidate['sdpMid'], mapCandidate['sdpMlineIndex']);
     await _localPeerConnection.addCandidate(iceCandidate);
+  }
+
+  void dispose(){
+    _localStream.dispose();
+    _remoteStream?.dispose();
+
+    _localPeerConnection.close();
+    _localPeerConnection.dispose();
   }
 }

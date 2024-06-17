@@ -17,6 +17,7 @@ final viduDio = Dio(BaseOptions(baseUrl: 'https://vidudev.bankmas.net/'))..inter
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const MyApp());
 }
 
