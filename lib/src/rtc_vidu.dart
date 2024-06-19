@@ -138,7 +138,12 @@ class RTCVidu {
     final Map<String, dynamic> mediaConstraints = {
       'audio': true,
       'video': {
+        'mandatory': {
+          'minWidth': '320',
+          'minHeight': '240',
+        },
         'facingMode': 'user',
+        'optional': [],
       }
     };
     localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);

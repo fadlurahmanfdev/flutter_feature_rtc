@@ -31,6 +31,7 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
         userId = iosInfo.identifierForVendor ?? '-';
         initializeLocalRenderer();
         initPlugin();
+        initAnswerListener();
       });
     } else {
       DeviceInfoPlugin().androidInfo.then((androidInfo) {
@@ -60,9 +61,16 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
   Future<void> initPlugin() async {
     featureRtcManager = FeatureRtcManager(
       onLocalStreamAdded: (stream) {
+        print("MASUK SINI STREAM");
         setState(() {
-          localRenderer.srcObject = stream;
+          print("MASUK SINI STREAM 2");
+
+          localRenderer.initialize().then((_){
+            localRenderer.srcObject = stream;
+          });
         });
+        print("MASUK SINI STREAM 3");
+        setState(() {});
       },
       onRemoteStreamAdded: (stream) {
         setState(() {
@@ -73,18 +81,52 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
         store.saveCallerCandidate(roomId: roomId, uuid: uuid, candidate: iceCandidate);
       },
       onSaveOffer: (String offerUserId, Map<String, dynamic> offer) {
-        store.saveCallerOffer(roomId: roomId, offerUserId: offerUserId, offer: offer);
+        store.saveCallerOffer(roomId: roomId, offer: offer);
+      },
+      onCallerListenAnswerOffer: () {
+        print("MASUK LISTEN RECEIVER ANSWER NIH");
+        streamAnswer = store.listenReceiverAnswer(roomId: roomId).listen((answer) {
+          print("MASUK ANSWER: $answer");
+          featureRtcManager.setAnswer(answer: answer);
+        });
       },
       onSaveAnswer: (Map<String, dynamic> answer) {
         store.saveReceiverAnswer(roomId: roomId, answerUserId: userId, answer: answer);
       },
+      onReceiverAddCandidate: () {
+        store.getCallerCandidate(roomId: roomId).then(
+          (candidates) {
+            for (final candidate in candidates) {
+              featureRtcManager.addCandidate(candidate: candidate);
+            }
+          },
+        );
+      },
     );
   }
 
-  late StreamSubscription<Map<String, dynamic>> streamAnswer;
+  StreamSubscription<Map<String, dynamic>>? streamAnswer;
+  late StreamSubscription<Map<String, dynamic>> streamOffer;
+  bool isJoinCallButtonVisible = false;
+  Map<String, dynamic>? offer;
+
   Future<void> initAnswerListener() async {
-    streamAnswer = store.listenReceiverAnswer(roomId: roomId).listen((answer) {
-      featureRtcManager.setAnswer(answer: answer);
+    offer = await store.getCallerOffer(roomId: roomId);
+    print("MASUK OFFER: $offer");
+    if (offer != null) {
+      setState(() {
+        isJoinCallButtonVisible = true;
+      });
+    }
+    streamOffer = store.listenCallerOffer(roomId: roomId).listen((offer) {
+      if (offer['userId'] != userId) {
+        if(mounted){
+          setState(() {
+            this.offer = offer;
+            isJoinCallButtonVisible = true;
+          });
+        }
+      }
     });
   }
 
@@ -92,7 +134,7 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Manual Call Screen'),
+        title: const Text('Manual Call Screen'),
       ),
       body: Row(
         children: [
@@ -107,19 +149,19 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
     return Expanded(
       child: Column(
         children: [
-          Text('LOCAL'),
+          const Text('LOCAL'),
           Container(
             height: 200,
             width: 100,
-            color: Colors.black,
             child: RTCVideoView(localRenderer),
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           ElevatedButton(
-              onPressed: () async {
-                featureRtcManager.startVideoCall(fromUserId: userId);
-              },
-              child: Text('Start Video Call'))
+            onPressed: () async {
+              featureRtcManager.startVideoCall(fromUserId: userId);
+            },
+            child: const Text('Start Video Call'),
+          ),
         ],
       ),
     );
@@ -129,12 +171,22 @@ class _ManualCallScreenState extends State<ManualCallScreen> {
     return Expanded(
       child: Column(
         children: [
-          Text('REMOTE'),
+          const Text('REMOTE'),
           Container(
             height: 200,
             width: 100,
             color: Colors.black,
             child: RTCVideoView(remoteRenderer),
+          ),
+          const SizedBox(height: 20),
+          Visibility(
+            visible: isJoinCallButtonVisible && offer != null,
+            child: ElevatedButton(
+              onPressed: () async {
+                featureRtcManager.joinCall(fromUserId: userId, offer: offer ?? {});
+              },
+              child: const Text('Join Video Call'),
+            ),
           ),
         ],
       ),

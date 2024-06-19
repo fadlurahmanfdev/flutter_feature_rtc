@@ -4,7 +4,12 @@ abstract class BaseFeatureRtc {
   final Map<String, dynamic> _mediaConstraints = {
     'audio': true,
     'video': {
+      'mandatory': {
+        'minWidth': '320',
+        'minHeight': '240',
+      },
       'facingMode': 'user',
+      'optional': [],
     }
   };
 

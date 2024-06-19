@@ -13,10 +13,9 @@ abstract class ManualCallStoreBase with Store {
   @action
   Future<void> saveCallerOffer({
     required String roomId,
-    required String offerUserId,
     required Map<String, dynamic> offer,
   }) async {
-    return videoCallDataSourceRepository.saveCallerOffer(roomId: roomId, offerUserId: offerUserId, offer: offer);
+    return videoCallDataSourceRepository.saveCallerOffer(roomId: roomId, offer: offer);
   }
 
   @action
@@ -42,5 +41,26 @@ abstract class ManualCallStoreBase with Store {
     required String roomId,
   }) {
     return videoCallDataSourceRepository.listenReceiverAnswer(roomId: roomId);
+  }
+
+  @action
+  Future<Map<String, dynamic>?> getCallerOffer({
+    required String roomId,
+  }) {
+    return videoCallDataSourceRepository.getCallerOffer(roomId: roomId);
+  }
+
+  @action
+  Stream<Map<String, dynamic>> listenCallerOffer({
+    required String roomId,
+  }) {
+    return videoCallDataSourceRepository.listenCallerOffer(roomId: roomId);
+  }
+
+  @action
+  Future<List<Map<String, dynamic>>> getCallerCandidate({
+    required String roomId,
+  }) {
+    return videoCallDataSourceRepository.getCallerCandidates(roomId: roomId);
   }
 }
